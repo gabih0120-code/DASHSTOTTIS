@@ -1,0 +1,1035 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+  <title>Dashboard de Compras — Plusval</title>
+  <script src="https://cdn.jsdelivr.net/npm/xlsx@0.18.5/dist/xlsx.full.min.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.0/dist/chart.umd.min.js"></script>
+  <style>
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+    :root {
+      --bg:        #0b0f1a;
+      --surface:   #111827;
+      --surface2:  #1a2235;
+      --border:    #1f2d45;
+      --text:      #e2e8f0;
+      --muted:     #6b7280;
+      --accent:    #3b82f6;
+
+      --c-atendido:  #22c55e;
+      --c-gerado:    #3b82f6;
+      --c-parcial:   #f59e0b;
+      --c-cancelado: #ef4444;
+      --c-recusado:  #a855f7;
+      --c-liberado:  #06b6d4;
+      --c-aprovacao: #ec4899;
+      --c-cotacao:   #64748b;
+    }
+
+    html { scroll-behavior: smooth; }
+
+    body {
+      font-family: 'Segoe UI', system-ui, sans-serif;
+      background: var(--bg);
+      color: var(--text);
+      min-height: 100vh;
+    }
+
+    /* ══ SCROLLBAR ══ */
+    ::-webkit-scrollbar { width: 6px; height: 6px; }
+    ::-webkit-scrollbar-track { background: var(--surface); }
+    ::-webkit-scrollbar-thumb { background: var(--border); border-radius: 3px; }
+
+    /* ══ HEADER ══ */
+    header {
+      background: var(--surface);
+      border-bottom: 1px solid var(--border);
+      padding: 16px 28px;
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      position: sticky; top: 0; z-index: 100;
+      box-shadow: 0 2px 12px #00000055;
+    }
+    .logo { display: flex; align-items: center; gap: 12px; }
+    .logo-dot {
+      width: 36px; height: 36px; border-radius: 10px;
+      background: linear-gradient(135deg, #3b82f6, #8b5cf6);
+      display: flex; align-items: center; justify-content: center;
+      font-weight: 800; font-size: .9rem; color: #fff;
+    }
+    header h1 { font-size: 1.15rem; font-weight: 700; color: var(--text); }
+    header .sub { font-size: .72rem; color: var(--muted); margin-top: 1px; }
+
+    #upload-btn {
+      background: linear-gradient(135deg, #3b82f6, #6366f1);
+      color: #fff; border: none;
+      padding: 9px 18px; border-radius: 8px; cursor: pointer;
+      font-size: .85rem; font-weight: 600;
+      display: flex; align-items: center; gap: 7px;
+      transition: opacity .15s;
+    }
+    #upload-btn:hover { opacity: .85; }
+    #file-input { display: none; }
+
+    /* ══ UPLOAD SCREEN ══ */
+    #upload-screen {
+      display: flex; flex-direction: column;
+      align-items: center; justify-content: center;
+      min-height: calc(100vh - 69px); gap: 28px;
+    }
+    .upload-card {
+      background: var(--surface);
+      border: 2px dashed var(--border);
+      border-radius: 20px; padding: 64px 96px;
+      text-align: center; cursor: pointer;
+      transition: border-color .2s, background .2s;
+    }
+    .upload-card:hover { border-color: #3b82f6; background: var(--surface2); }
+    .upload-icon {
+      width: 64px; height: 64px; margin: 0 auto 20px;
+      background: linear-gradient(135deg,#1d4ed8,#4f46e5);
+      border-radius: 16px;
+      display: flex; align-items: center; justify-content: center;
+    }
+    .upload-icon svg { width: 32px; height: 32px; stroke: #fff; fill: none; stroke-width: 1.8; }
+    .upload-card h2 { color: #93c5fd; font-size: 1.2rem; margin-bottom: 8px; }
+    .upload-card p { color: var(--muted); font-size: .9rem; }
+    .upload-hint {
+      background: var(--surface2); border: 1px solid var(--border);
+      border-radius: 10px; padding: 12px 24px; font-size: .8rem; color: var(--muted);
+    }
+
+    /* ══ FILTROS ══ */
+    #filters-bar {
+      display: none;
+      background: var(--surface);
+      border-bottom: 1px solid var(--border);
+      padding: 10px 28px; gap: 12px;
+      flex-wrap: wrap; align-items: center;
+    }
+    .filter-group { display: flex; align-items: center; gap: 6px; }
+    .filter-group label { font-size: .75rem; color: var(--muted); white-space: nowrap; }
+    #filters-bar select, #filters-bar input[type=month] {
+      background: var(--surface2); color: var(--text);
+      border: 1px solid var(--border);
+      border-radius: 7px; padding: 6px 10px; font-size: .82rem; cursor: pointer;
+      outline: none; transition: border-color .15s;
+    }
+    #filters-bar select:focus, #filters-bar input[type=month]:focus {
+      border-color: #3b82f6;
+    }
+    #btn-clear {
+      margin-left: auto;
+      background: var(--surface2); color: var(--muted);
+      border: 1px solid var(--border); border-radius: 7px;
+      padding: 6px 14px; font-size: .8rem; cursor: pointer;
+      transition: all .15s;
+    }
+    #btn-clear:hover { background: var(--border); color: var(--text); }
+    #record-count { font-size: .75rem; color: var(--muted); }
+
+    /* ══ DASHBOARD ══ */
+    #dashboard { display: none; padding: 24px 28px 40px; }
+
+    /* ══ SECTION TITLE ══ */
+    .section-title {
+      font-size: .7rem; font-weight: 700;
+      text-transform: uppercase; letter-spacing: 1.2px;
+      color: var(--muted); margin-bottom: 14px;
+    }
+
+    /* ══ CARDS ══ */
+    .cards-grid {
+      display: grid;
+      grid-template-columns: repeat(auto-fill, minmax(185px, 1fr));
+      gap: 14px; margin-bottom: 28px;
+    }
+    .card {
+      background: var(--surface);
+      border: 1px solid var(--border);
+      border-radius: 14px; padding: 18px 20px;
+      border-top: 3px solid;
+      position: relative; overflow: hidden;
+      transition: transform .15s, box-shadow .15s;
+    }
+    .card:hover { transform: translateY(-3px); box-shadow: 0 8px 24px #00000044; }
+    .card-icon {
+      width: 36px; height: 36px; border-radius: 9px;
+      display: flex; align-items: center; justify-content: center;
+      font-size: 1.1rem; margin-bottom: 12px;
+    }
+    .card-label {
+      font-size: .68rem; color: var(--muted);
+      text-transform: uppercase; letter-spacing: .6px; font-weight: 600;
+    }
+    .card-value {
+      font-size: 1.8rem; font-weight: 800;
+      margin: 4px 0 6px; line-height: 1;
+    }
+    .card-sub { font-size: .72rem; color: var(--muted); }
+    .card-bar-bg {
+      height: 3px; background: var(--border);
+      border-radius: 2px; margin-top: 12px; overflow: hidden;
+    }
+    .card-bar { height: 100%; border-radius: 2px; transition: width .6s ease; }
+
+    /* ══ CHARTS GRID ══ */
+    .charts-row {
+      display: grid; gap: 16px; margin-bottom: 16px;
+    }
+    .charts-row-2 { grid-template-columns: 1fr 1fr; }
+    .charts-row-3 { grid-template-columns: 1fr 1fr 1fr; }
+
+    .chart-card {
+      background: var(--surface);
+      border: 1px solid var(--border);
+      border-radius: 14px; padding: 20px 22px;
+    }
+    .chart-card h3 {
+      font-size: .78rem; font-weight: 700;
+      text-transform: uppercase; letter-spacing: .8px;
+      color: var(--muted); margin-bottom: 16px;
+    }
+    .chart-wrap { position: relative; }
+
+    /* ══ TABLE ══ */
+    .table-card {
+      background: var(--surface);
+      border: 1px solid var(--border);
+      border-radius: 14px; overflow: hidden;
+    }
+    .table-header {
+      padding: 16px 20px;
+      display: flex; align-items: center; justify-content: space-between;
+      border-bottom: 1px solid var(--border);
+    }
+    .table-header h3 {
+      font-size: .78rem; font-weight: 700;
+      text-transform: uppercase; letter-spacing: .8px; color: var(--muted);
+    }
+    #table-count { font-size: .72rem; color: var(--muted); }
+
+    .tbl-wrap { overflow-x: auto; }
+    table { width: 100%; border-collapse: collapse; font-size: .8rem; }
+    thead tr { background: var(--surface2); }
+    thead th {
+      padding: 10px 14px; text-align: left;
+      font-size: .68rem; font-weight: 700;
+      text-transform: uppercase; letter-spacing: .6px;
+      color: var(--muted); white-space: nowrap;
+      border-bottom: 1px solid var(--border);
+    }
+    tbody tr {
+      border-bottom: 1px solid var(--border);
+      transition: background .1s;
+    }
+    tbody tr:hover { background: var(--surface2); }
+    tbody tr:last-child { border-bottom: none; }
+    tbody td { padding: 9px 14px; color: var(--text); white-space: nowrap; }
+
+    /* badges */
+    .badge {
+      display: inline-block; padding: 3px 10px;
+      border-radius: 20px; font-size: .68rem; font-weight: 700;
+      text-transform: uppercase; letter-spacing: .4px;
+    }
+    .badge-atendido  { background: #16653340; color: #4ade80; border: 1px solid #16653360; }
+    .badge-gerado    { background: #1e3a8a40; color: #60a5fa; border: 1px solid #1e3a8a60; }
+    .badge-parcial   { background: #78350f40; color: #fbbf24; border: 1px solid #78350f60; }
+    .badge-cancelado { background: #7f1d1d40; color: #f87171; border: 1px solid #7f1d1d60; }
+    .badge-recusado  { background: #4c1d9540; color: #c084fc; border: 1px solid #4c1d9560; }
+    .badge-liberado  { background: #16454340; color: #22d3ee; border: 1px solid #16454360; }
+    .badge-aprovacao { background: #83185540; color: #f472b6; border: 1px solid #83185560; }
+    .badge-cotacao   { background: #1e293b;   color: #94a3b8; border: 1px solid var(--border); }
+
+    /* loading */
+    #loading {
+      display: none; position: fixed; inset: 0;
+      background: #0b0f1acc; z-index: 999;
+      flex-direction: column; align-items: center; justify-content: center; gap: 16px;
+    }
+    .spinner {
+      width: 44px; height: 44px; border-radius: 50%;
+      border: 3px solid var(--border);
+      border-top-color: #3b82f6;
+      animation: spin .7s linear infinite;
+    }
+    @keyframes spin { to { transform: rotate(360deg); } }
+    #loading p { color: var(--muted); font-size: .9rem; }
+
+    @media (max-width: 900px) {
+      .charts-row-2, .charts-row-3 { grid-template-columns: 1fr; }
+    }
+  </style>
+</head>
+<body>
+
+<!-- LOADING -->
+<div id="loading">
+  <div class="spinner"></div>
+  <p>Processando arquivo…</p>
+</div>
+
+<!-- HEADER -->
+<header>
+  <div class="logo">
+    <div class="logo-dot">PHD</div>
+    <div>
+      <div class="header-title" style="font-size:1.1rem;font-weight:700;">Compras</div>
+      <div class="sub">PLUSVAL AGROAVÍCOLA — Fábrica de Rações - DEV - TOTTIS</div>
+    </div>
+  </div>
+  <button id="upload-btn" onclick="document.getElementById('file-input').click()">
+    <svg width="16" height="16" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24">
+      <path d="M21 15v4a2 2 0 01-2 2H5a2 2 0 01-2-2v-4M17 8l-5-5-5 5M12 3v12"/>
+    </svg>
+    Importar Excel
+  </button>
+  <input type="file" id="file-input" accept=".xlsx,.xls" onchange="handleFile(event)"/>
+</header>
+
+<!-- FILTROS -->
+<div id="filters-bar">
+  <div class="filter-group">
+    <label>Status</label>
+    <select id="f-status"><option value="">Todos</option></select>
+  </div>
+  <div class="filter-group">
+    <label>Fornecedor</label>
+    <select id="f-fornecedor"><option value="">Todos</option></select>
+  </div>
+  <div class="filter-group">
+    <label>Mês Liberação</label>
+    <input type="month" id="f-mes"/>
+  </div>
+  <span id="record-count"></span>
+  <button id="btn-clear" onclick="clearFilters()">✕ Limpar</button>
+</div>
+
+<!-- UPLOAD SCREEN -->
+<div id="upload-screen">
+  <div class="upload-card" onclick="document.getElementById('file-input').click()">
+    <div class="upload-icon">
+      <svg viewBox="0 0 24 24"><path d="M14 2H6a2 2 0 00-2 2v16a2 2 0 002 2h12a2 2 0 002-2V8z"/><polyline points="14 2 14 8 20 8"/><line x1="12" y1="18" x2="12" y2="12"/><polyline points="9 15 12 12 15 15"/></svg>
+    </div>
+    <h2>Base de Compras</h2>
+    <p>Projeto criado especialmente para o <strong>PCM - DA FB RAÇÃO</strong> 
+      Leandro,
+      Diego e 
+      Henrique  </p>
+  </div>
+  <div class="upload-hint">Nenhum dado é enviado para servidores — Desenvolvimento por Paulo Henrique Diniz</div>
+</div>
+
+<!-- DASHBOARD -->
+<div id="dashboard">
+
+  <!-- CARDS -->
+  <p class="section-title">Visão Geral</p>
+  <div class="cards-grid" id="cards-container">
+    <div class="card" style="border-top-color:#6b7280">
+      <div class="card-icon" style="background:#6b728020">📋</div>
+      <div class="card-label">Total de Itens</div>
+      <div class="card-value" id="c-total">—</div>
+      <div class="card-sub">solicitações</div>
+    </div>
+    <div class="card" style="border-top-color:#22c55e">
+      <div class="card-icon" style="background:#22c55e20">✅</div>
+      <div class="card-label">Atendido</div>
+      <div class="card-value" style="color:#22c55e" id="c-atendido">—</div>
+      <div class="card-sub" id="c-atendido-val">—</div>
+      <div class="card-bar-bg"><div class="card-bar" id="p-atendido" style="background:#22c55e;width:0%"></div></div>
+    </div>
+    <div class="card" style="border-top-color:#3b82f6">
+      <div class="card-icon" style="background:#3b82f620">🔵</div>
+      <div class="card-label">Gerado</div>
+      <div class="card-value" style="color:#3b82f6" id="c-gerado">—</div>
+      <div class="card-sub" id="c-gerado-val">—</div>
+      <div class="card-bar-bg"><div class="card-bar" id="p-gerado" style="background:#3b82f6;width:0%"></div></div>
+    </div>
+    <div class="card" style="border-top-color:#f59e0b">
+      <div class="card-icon" style="background:#f59e0b20">🟡</div>
+      <div class="card-label">Parc. Atendido</div>
+      <div class="card-value" style="color:#f59e0b" id="c-parcial">—</div>
+      <div class="card-sub" id="c-parcial-val">—</div>
+      <div class="card-bar-bg"><div class="card-bar" id="p-parcial" style="background:#f59e0b;width:0%"></div></div>
+    </div>
+    <div class="card" style="border-top-color:#ef4444">
+      <div class="card-icon" style="background:#ef444420">❌</div>
+      <div class="card-label">Cancelado</div>
+      <div class="card-value" style="color:#ef4444" id="c-cancelado">—</div>
+      <div class="card-sub" id="c-cancelado-val">—</div>
+      <div class="card-bar-bg"><div class="card-bar" id="p-cancelado" style="background:#ef4444;width:0%"></div></div>
+    </div>
+    <div class="card" style="border-top-color:#a855f7">
+      <div class="card-icon" style="background:#a855f720">🔴</div>
+      <div class="card-label">Recusado</div>
+      <div class="card-value" style="color:#a855f7" id="c-recusado">—</div>
+      <div class="card-sub" id="c-recusado-val">—</div>
+      <div class="card-bar-bg"><div class="card-bar" id="p-recusado" style="background:#a855f7;width:0%"></div></div>
+    </div>
+    <div class="card" style="border-top-color:#06b6d4">
+      <div class="card-icon" style="background:#06b6d420">🔓</div>
+      <div class="card-label">Liberado</div>
+      <div class="card-value" style="color:#06b6d4" id="c-liberado">—</div>
+      <div class="card-sub" id="c-liberado-val">—</div>
+      <div class="card-bar-bg"><div class="card-bar" id="p-liberado" style="background:#06b6d4;width:0%"></div></div>
+    </div>
+    <div class="card" style="border-top-color:#ec4899">
+      <div class="card-icon" style="background:#ec489920">⏳</div>
+      <div class="card-label">Em Aprovação</div>
+      <div class="card-value" style="color:#ec4899" id="c-aprovacao">—</div>
+      <div class="card-sub" id="c-aprovacao-val">—</div>
+      <div class="card-bar-bg"><div class="card-bar" id="p-aprovacao" style="background:#ec4899;width:0%"></div></div>
+    </div>
+    <div class="card" style="border-top-color:#10b981">
+      <div class="card-icon" style="background:#10b98120">💰</div>
+      <div class="card-label">Valor Negociado</div>
+      <div class="card-value" style="color:#10b981;font-size:1.1rem" id="c-valor-total">—</div>
+      <div class="card-sub" id="c-qt-total">—</div>
+    </div>
+  </div>
+
+  <!-- ROW 1: DONUT + BARRAS POR MÊS -->
+  <p class="section-title">Análise por Status e Período</p>
+  <div class="charts-row charts-row-2" style="margin-bottom:16px">
+    <div class="chart-card">
+      <h3>Distribuição por Status</h3>
+      <div class="chart-wrap" style="max-height:280px">
+        <canvas id="chart-donut"></canvas>
+      </div>
+    </div>
+    <div class="chart-card">
+      <h3>Pedidos por Mês de Liberação</h3>
+      <div class="chart-wrap" style="height:280px">
+        <canvas id="chart-mes"></canvas>
+      </div>
+    </div>
+  </div>
+
+  <!-- ROW 2: VALOR POR STATUS + TOP FORNECEDORES QTD -->
+  <div class="charts-row charts-row-2" style="margin-bottom:16px">
+    <div class="chart-card">
+      <h3>Valor Negociado por Status</h3>
+      <div class="chart-wrap" style="height:260px">
+        <canvas id="chart-valor-status"></canvas>
+      </div>
+    </div>
+    <div class="chart-card">
+      <h3>Top 10 Fornecedores — Qtd. Itens</h3>
+      <div class="chart-wrap" style="height:260px">
+        <canvas id="chart-forn-qtd"></canvas>
+      </div>
+    </div>
+  </div>
+
+  <!-- ROW 3: TOP FORNECEDORES VALOR + LINHA ATENDIDOS vs GERADOS -->
+  <div class="charts-row charts-row-2" style="margin-bottom:28px">
+    <div class="chart-card">
+      <h3>Top 10 Fornecedores — Valor (R$)</h3>
+      <div class="chart-wrap" style="height:260px">
+        <canvas id="chart-forn-val"></canvas>
+      </div>
+    </div>
+    <div class="chart-card">
+      <h3>Atendidos vs Gerados por Mês</h3>
+      <div class="chart-wrap" style="height:260px">
+        <canvas id="chart-linha"></canvas>
+      </div>
+    </div>
+  </div>
+
+  <!-- TABELA -->
+  <p class="section-title">Detalhe dos Pedidos</p>
+  <div class="table-card">
+    <div class="table-header">
+      <h3>Registros</h3>
+      <span id="table-count"></span>
+    </div>
+    <div class="tbl-wrap">
+      <table>
+        <thead>
+          <tr>
+            <th>Solicitação</th>
+            <th>Lote</th>
+            <th>Cód. Item</th>
+            <th>Descrição</th>
+            <th>Dt. Desejada</th>
+            <th>Qt. Solic.</th>
+            <th>Qt. Neg.</th>
+            <th>Vl. Negociado</th>
+            <th>Status</th>
+            <th>Dt. Liberação</th>
+            <th>Nr. Pedido</th>
+            <th>Fornecedor</th>
+          </tr>
+        </thead>
+        <tbody id="table-body"></tbody>
+      </table>
+    </div>
+  </div>
+</div>
+
+<script>
+/* ════════════════════════════════════════════
+   ESTADO GLOBAL
+════════════════════════════════════════════ */
+let allData = [];
+let charts  = {};
+
+/* ════════════════════════════════════════════
+   LEITURA DO EXCEL
+════════════════════════════════════════════ */
+function handleFile(e) {
+  const file = e.target.files[0];
+  if (!file) return;
+  show('loading');
+  const reader = new FileReader();
+  reader.onload = ev => {
+    try {
+      const wb   = XLSX.read(ev.target.result, { type: 'array', cellDates: true });
+      const ws   = wb.Sheets[wb.SheetNames[0]];
+      const rows = XLSX.utils.sheet_to_json(ws, { header: 1, raw: true, defval: null });
+      parseRows(rows);
+    } catch(err) {
+      alert('Erro ao ler arquivo: ' + err.message);
+    } finally {
+      hide('loading');
+    }
+  };
+  reader.readAsArrayBuffer(file);
+}
+
+function parseRows(rows) {
+  /* localiza linha de cabeçalho */
+  let hIdx = -1;
+  const COLS = ['Empresa','Solicitação','Lote Compra','Cód. Item','Descrição do Item',
+                'Movimentação','Dt. Desejada','Qt. Solicitdada','Qt. Negociado',
+                'Vl. Negociado','Status','Dt. Liberação','Nr. Pedido','Fornecedor','Nome'];
+  for (let i = 0; i < Math.min(rows.length, 20); i++) {
+    const r = rows[i];
+    if (r && r.some(c => String(c||'').includes('Solicitação'))) { hIdx = i; break; }
+  }
+  if (hIdx === -1) { alert('Cabeçalho não encontrado.'); return; }
+
+  const headers = rows[hIdx].map(h => String(h||'').trim());
+  const idx = k => headers.findIndex(h => h.includes(k));
+
+  const iEmp   = idx('Empresa');
+  const iSol   = idx('Solicitação');
+  const iLote  = idx('Lote');
+  const iCod   = idx('Cód');
+  const iDesc  = idx('Descrição do Item');
+  const iMov   = idx('Movimentação');
+  const iDtDes = idx('Desejada');
+  const iQtS   = idx('Qt. Solic') !== -1 ? idx('Qt. Solic') : idx('Solicitdada');
+  const iQtN   = idx('Qt. Neg');
+  const iVl    = idx('Vl. Neg');
+  const iStat  = idx('Status');
+  const iDtLib = idx('Liberação');
+  const iNrPed = idx('Nr. Pedido');
+  const iFornC = idx('Fornecedor');
+  const iFornN = idx('Nome');
+
+  allData = [];
+  for (let i = hIdx + 1; i < rows.length; i++) {
+    const r = rows[i];
+    if (!r || r.every(c => c === null || c === undefined)) continue;
+    const status = String(r[iStat] || '').trim();
+    if (!status || status.toLowerCase().startsWith('total')) continue;
+
+    allData.push({
+      empresa:       r[iEmp],
+      solicitacao:   r[iSol],
+      loteCompra:    r[iLote],
+      codItem:       r[iCod],
+      descricao:     r[iDesc],
+      movimentacao:  r[iMov],
+      dtDesejada:    parseDate(r[iDtDes]),
+      qtSolicitada:  toNum(r[iQtS]),
+      qtNegociado:   toNum(r[iQtN]),
+      vlNegociado:   toNum(r[iVl]),
+      status,
+      dtLiberacao:   parseDate(r[iDtLib]),
+      nrPedido:      r[iNrPed],
+      fornecedor:    r[iFornC],
+      fornecedorNome:r[iFornN],
+    });
+  }
+
+  populateFilters();
+  renderAll(allData);
+  hide('upload-screen');
+  show('filters-bar');
+  show('dashboard');
+}
+
+/* ════════════════════════════════════════════
+   FILTROS
+════════════════════════════════════════════ */
+function populateFilters() {
+  const statuses = [...new Set(allData.map(r=>r.status))].sort();
+  const fornecs  = [...new Set(allData.map(r=>r.fornecedorNome||'').filter(Boolean))].sort();
+
+  const sf = document.getElementById('f-status');
+  sf.innerHTML = '<option value="">Todos os status</option>';
+  statuses.forEach(s => { const o=document.createElement('option'); o.value=s; o.text=s; sf.appendChild(o); });
+
+  const ff = document.getElementById('f-fornecedor');
+  ff.innerHTML = '<option value="">Todos os fornecedores</option>';
+  fornecs.slice(0,200).forEach(f => { const o=document.createElement('option'); o.value=f; o.text=f.length>40?f.slice(0,40)+'…':f; ff.appendChild(o); });
+
+  [sf, ff, document.getElementById('f-mes')].forEach(el => el.addEventListener('change', applyFilters));
+}
+
+function applyFilters() {
+  const st  = document.getElementById('f-status').value;
+  const fn  = document.getElementById('f-fornecedor').value;
+  const mes = document.getElementById('f-mes').value;
+
+  let d = allData;
+  if (st)  d = d.filter(r => r.status === st);
+  if (fn)  d = d.filter(r => r.fornecedorNome === fn);
+  if (mes) d = d.filter(r => r.dtLiberacao && r.dtLiberacao.slice(0,7) === mes);
+
+  document.getElementById('record-count').textContent = `${d.length.toLocaleString('pt-BR')} registros`;
+  renderAll(d);
+}
+
+function clearFilters() {
+  document.getElementById('f-status').value    = '';
+  document.getElementById('f-fornecedor').value = '';
+  document.getElementById('f-mes').value        = '';
+  document.getElementById('record-count').textContent = '';
+  renderAll(allData);
+}
+
+/* ════════════════════════════════════════════
+   RENDER ALL
+════════════════════════════════════════════ */
+function renderAll(data) {
+  renderCards(data);
+  renderCharts(data);
+  renderTable(data);
+}
+
+/* ════════════════════════════════════════════
+   CARDS
+════════════════════════════════════════════ */
+function renderCards(data) {
+  const total     = data.length;
+  const atendido  = data.filter(r => r.status === 'PEDIDO ATENDIDO');
+  const gerado    = data.filter(r => r.status === 'PEDIDO GERADO');
+  const parcial   = data.filter(r => r.status === 'PEDIDO PARC. ATENDIDO');
+  const cancelado = data.filter(r => r.status === 'CANCELADO');
+  const recusado  = data.filter(r => r.status === 'RECUSADO');
+  const liberado  = data.filter(r => r.status === 'LIBERADO');
+  const aprovacao = data.filter(r => r.status === 'EM APROVACAO');
+  const valorTotal= data.reduce((s,r) => s+(r.vlNegociado||0), 0);
+  const qtTotal   = data.reduce((s,r) => s+(r.qtSolicitada||0), 0);
+
+  const set = (id,v) => { const el=document.getElementById(id); if(el) el.textContent=v; };
+  const pct = (arr,tot) => tot ? Math.round(arr.length/tot*100)+'%' : '0%';
+
+  set('c-total',    total.toLocaleString('pt-BR'));
+  set('c-atendido', atendido.length.toLocaleString('pt-BR'));
+  set('c-atendido-val', fmt(sumVal(atendido)));
+  set('c-gerado',   gerado.length.toLocaleString('pt-BR'));
+  set('c-gerado-val', fmt(sumVal(gerado)));
+  set('c-parcial',  parcial.length.toLocaleString('pt-BR'));
+  set('c-parcial-val', fmt(sumVal(parcial)));
+  set('c-cancelado',cancelado.length.toLocaleString('pt-BR'));
+  set('c-cancelado-val', pct(cancelado,total)+' do total');
+  set('c-recusado', recusado.length.toLocaleString('pt-BR'));
+  set('c-recusado-val', pct(recusado,total)+' do total');
+  set('c-liberado', liberado.length.toLocaleString('pt-BR'));
+  set('c-liberado-val', fmt(sumVal(liberado)));
+  set('c-aprovacao',aprovacao.length.toLocaleString('pt-BR'));
+  set('c-aprovacao-val', fmt(sumVal(aprovacao)));
+  set('c-valor-total', fmt(valorTotal));
+  set('c-qt-total',    qtTotal.toLocaleString('pt-BR')+' qt. solic. total');
+
+  const setBar = (id,arr) => {
+    const el=document.getElementById(id);
+    if(el) el.style.width = total ? Math.round(arr.length/total*100)+'%' : '0%';
+  };
+  setBar('p-atendido', atendido);
+  setBar('p-gerado',   gerado);
+  setBar('p-parcial',  parcial);
+  setBar('p-cancelado',cancelado);
+  setBar('p-recusado', recusado);
+  setBar('p-liberado', liberado);
+  setBar('p-aprovacao',aprovacao);
+}
+
+/* ════════════════════════════════════════════
+   GRÁFICOS
+════════════════════════════════════════════ */
+const CHART_DEFAULTS = {
+  animation: { duration: 500 },
+  plugins: {
+    legend: {
+      labels: {
+        color: '#94a3b8',
+        font: { size: 11 },
+        boxWidth: 12, boxHeight: 12,
+        padding: 14,
+      }
+    },
+    tooltip: {
+      backgroundColor: '#1e293b',
+      borderColor: '#1f2d45',
+      borderWidth: 1,
+      titleColor: '#e2e8f0',
+      bodyColor: '#94a3b8',
+      padding: 10,
+    }
+  }
+};
+
+function destroyChart(id) {
+  if (charts[id]) { charts[id].destroy(); delete charts[id]; }
+}
+
+const STATUS_CFG = [
+  { key: 'PEDIDO ATENDIDO',       label: 'Atendido',       color: '#22c55e' },
+  { key: 'PEDIDO GERADO',         label: 'Gerado',         color: '#3b82f6' },
+  { key: 'PEDIDO PARC. ATENDIDO', label: 'Parc. Atendido', color: '#f59e0b' },
+  { key: 'CANCELADO',             label: 'Cancelado',      color: '#ef4444' },
+  { key: 'RECUSADO',              label: 'Recusado',       color: '#a855f7' },
+  { key: 'LIBERADO',              label: 'Liberado',       color: '#06b6d4' },
+  { key: 'EM APROVACAO',          label: 'Em Aprovação',   color: '#ec4899' },
+  { key: 'EM COTACAO',            label: 'Em Cotação',     color: '#64748b' },
+];
+
+function renderCharts(data) {
+  /* ── DONUT ── */
+  destroyChart('donut');
+  const donutCounts = STATUS_CFG.map(s => data.filter(r=>r.status===s.key).length);
+  charts['donut'] = new Chart(document.getElementById('chart-donut'), {
+    type: 'doughnut',
+    data: {
+      labels: STATUS_CFG.map(s=>s.label),
+      datasets: [{
+        data: donutCounts,
+        backgroundColor: STATUS_CFG.map(s=>s.color+'bb'),
+        borderColor:     STATUS_CFG.map(s=>s.color),
+        borderWidth: 2,
+        hoverOffset: 6,
+      }]
+    },
+    options: {
+      ...CHART_DEFAULTS,
+      cutout: '68%',
+      plugins: {
+        ...CHART_DEFAULTS.plugins,
+        legend: { ...CHART_DEFAULTS.plugins.legend, position: 'right' }
+      }
+    }
+  });
+
+  /* ── BARRAS POR MÊS ── */
+  destroyChart('mes');
+  const byMes = groupBy(data.filter(r=>r.dtLiberacao), 'dtLiberacao');
+  const meses = Object.keys(byMes)
+    .map(d => d.slice(0,7))
+    .filter((v,i,a)=>a.indexOf(v)===i)
+    .sort();
+  const mesCount = meses.map(m => data.filter(r=>r.dtLiberacao&&r.dtLiberacao.slice(0,7)===m).length);
+
+  charts['mes'] = new Chart(document.getElementById('chart-mes'), {
+    type: 'bar',
+    data: {
+      labels: meses.map(formatMes),
+      datasets: [{
+        label: 'Itens',
+        data: mesCount,
+        backgroundColor: '#3b82f6bb',
+        borderColor: '#3b82f6',
+        borderWidth: 1,
+        borderRadius: 5,
+        borderSkipped: false,
+      }]
+    },
+    options: {
+      ...CHART_DEFAULTS,
+      responsive: true, maintainAspectRatio: false,
+      scales: {
+        x: { ticks: { color:'#6b7280', font:{size:10} }, grid: { color:'#1f2d45' } },
+        y: { ticks: { color:'#6b7280' }, grid: { color:'#1f2d45' } }
+      },
+      plugins: { ...CHART_DEFAULTS.plugins, legend: { display: false } }
+    }
+  });
+
+  /* ── VALOR POR STATUS ── */
+  destroyChart('valor-status');
+  const valorStatus = STATUS_CFG.map(s => sumVal(data.filter(r=>r.status===s.key)));
+  charts['valor-status'] = new Chart(document.getElementById('chart-valor-status'), {
+    type: 'bar',
+    data: {
+      labels: STATUS_CFG.map(s=>s.label),
+      datasets: [{
+        label: 'Valor (R$)',
+        data: valorStatus,
+        backgroundColor: STATUS_CFG.map(s=>s.color+'99'),
+        borderColor:     STATUS_CFG.map(s=>s.color),
+        borderWidth: 1,
+        borderRadius: 5,
+        borderSkipped: false,
+      }]
+    },
+    options: {
+      ...CHART_DEFAULTS,
+      responsive: true, maintainAspectRatio: false,
+      indexAxis: 'y',
+      scales: {
+        x: {
+          ticks: { color:'#6b7280', callback: v => 'R$'+Number(v/1000).toFixed(0)+'k' },
+          grid: { color:'#1f2d45' }
+        },
+        y: { ticks: { color:'#94a3b8', font:{size:10} }, grid: { color:'#1f2d45' } }
+      },
+      plugins: { ...CHART_DEFAULTS.plugins, legend: { display: false } }
+    }
+  });
+
+  /* ── TOP 10 FORNECEDORES QTD ── */
+  destroyChart('forn-qtd');
+  const fornMap = {};
+  data.forEach(r => {
+    if (!r.fornecedorNome) return;
+    fornMap[r.fornecedorNome] = (fornMap[r.fornecedorNome]||0) + 1;
+  });
+  const topFornQtd = Object.entries(fornMap).sort((a,b)=>b[1]-a[1]).slice(0,10);
+  const gradColors10 = [
+    '#3b82f6','#6366f1','#8b5cf6','#a855f7','#ec4899',
+    '#ef4444','#f59e0b','#22c55e','#06b6d4','#64748b'
+  ];
+  charts['forn-qtd'] = new Chart(document.getElementById('chart-forn-qtd'), {
+    type: 'bar',
+    data: {
+      labels: topFornQtd.map(([n])=>n.length>22?n.slice(0,22)+'…':n),
+      datasets: [{
+        label: 'Qtd. Itens',
+        data: topFornQtd.map(([,v])=>v),
+        backgroundColor: gradColors10.map(c=>c+'aa'),
+        borderColor:     gradColors10,
+        borderWidth: 1,
+        borderRadius: 5,
+        borderSkipped: false,
+      }]
+    },
+    options: {
+      ...CHART_DEFAULTS,
+      responsive: true, maintainAspectRatio: false,
+      indexAxis: 'y',
+      scales: {
+        x: { ticks:{ color:'#6b7280' }, grid:{ color:'#1f2d45' } },
+        y: { ticks:{ color:'#94a3b8', font:{size:10} }, grid:{ color:'#1f2d45' } }
+      },
+      plugins: { ...CHART_DEFAULTS.plugins, legend: { display: false } }
+    }
+  });
+
+  /* ── TOP 10 FORNECEDORES VALOR ── */
+  destroyChart('forn-val');
+  const fornValMap = {};
+  data.forEach(r => {
+    if (!r.fornecedorNome) return;
+    fornValMap[r.fornecedorNome] = (fornValMap[r.fornecedorNome]||0) + (r.vlNegociado||0);
+  });
+  const topFornVal = Object.entries(fornValMap).sort((a,b)=>b[1]-a[1]).slice(0,10);
+  charts['forn-val'] = new Chart(document.getElementById('chart-forn-val'), {
+    type: 'bar',
+    data: {
+      labels: topFornVal.map(([n])=>n.length>22?n.slice(0,22)+'…':n),
+      datasets: [{
+        label: 'Valor (R$)',
+        data: topFornVal.map(([,v])=>v),
+        backgroundColor: gradColors10.map(c=>c+'aa'),
+        borderColor:     gradColors10,
+        borderWidth: 1,
+        borderRadius: 5,
+        borderSkipped: false,
+      }]
+    },
+    options: {
+      ...CHART_DEFAULTS,
+      responsive: true, maintainAspectRatio: false,
+      indexAxis: 'y',
+      scales: {
+        x: {
+          ticks:{ color:'#6b7280', callback: v=>'R$'+Number(v/1000).toFixed(0)+'k' },
+          grid:{ color:'#1f2d45' }
+        },
+        y: { ticks:{ color:'#94a3b8', font:{size:10} }, grid:{ color:'#1f2d45' } }
+      },
+      plugins: { ...CHART_DEFAULTS.plugins, legend: { display: false } }
+    }
+  });
+
+  /* ── LINHA ATENDIDOS vs GERADOS ── */
+  destroyChart('linha');
+  const atendidoByMes = meses.map(m =>
+    data.filter(r=>r.dtLiberacao&&r.dtLiberacao.slice(0,7)===m&&r.status==='PEDIDO ATENDIDO').length
+  );
+  const geradoByMes = meses.map(m =>
+    data.filter(r=>r.dtLiberacao&&r.dtLiberacao.slice(0,7)===m&&r.status==='PEDIDO GERADO').length
+  );
+  charts['linha'] = new Chart(document.getElementById('chart-linha'), {
+    type: 'line',
+    data: {
+      labels: meses.map(formatMes),
+      datasets: [
+        {
+          label: 'Atendidos',
+          data: atendidoByMes,
+          borderColor: '#22c55e',
+          backgroundColor: '#22c55e22',
+          fill: true,
+          tension: .35,
+          pointBackgroundColor: '#22c55e',
+          pointRadius: 3,
+          borderWidth: 2,
+        },
+        {
+          label: 'Gerados',
+          data: geradoByMes,
+          borderColor: '#3b82f6',
+          backgroundColor: '#3b82f622',
+          fill: true,
+          tension: .35,
+          pointBackgroundColor: '#3b82f6',
+          pointRadius: 3,
+          borderWidth: 2,
+        }
+      ]
+    },
+    options: {
+      ...CHART_DEFAULTS,
+      responsive: true, maintainAspectRatio: false,
+      scales: {
+        x: { ticks:{ color:'#6b7280', font:{size:10} }, grid:{ color:'#1f2d45' } },
+        y: { ticks:{ color:'#6b7280' }, grid:{ color:'#1f2d45' } }
+      }
+    }
+  });
+}
+
+/* ════════════════════════════════════════════
+   TABELA
+════════════════════════════════════════════ */
+function renderTable(data) {
+  const tbody = document.getElementById('table-body');
+  tbody.innerHTML = '';
+  const shown = data.slice(0, 500);
+  document.getElementById('table-count').textContent =
+    `exibindo ${shown.length.toLocaleString('pt-BR')} de ${data.length.toLocaleString('pt-BR')} registros`;
+
+  shown.forEach(r => {
+    const tr = document.createElement('tr');
+    tr.innerHTML = `
+      <td>${r.solicitacao ?? '—'}</td>
+      <td>${r.loteCompra  ?? '—'}</td>
+      <td>${r.codItem     ?? '—'}</td>
+      <td title="${r.descricao ?? ''}">${truncate(r.descricao, 42)}</td>
+      <td>${r.dtDesejada  ?? '—'}</td>
+      <td>${r.qtSolicitada?.toLocaleString('pt-BR') ?? '—'}</td>
+      <td>${r.qtNegociado?.toLocaleString('pt-BR')  ?? '—'}</td>
+      <td>${fmt(r.vlNegociado)}</td>
+      <td><span class="badge ${badgeClass(r.status)}">${r.status}</span></td>
+      <td>${r.dtLiberacao ?? '—'}</td>
+      <td>${r.nrPedido    ?? '—'}</td>
+      <td title="${r.fornecedorNome ?? ''}">${truncate(r.fornecedorNome, 30)}</td>
+    `;
+    tbody.appendChild(tr);
+  });
+}
+
+/* ════════════════════════════════════════════
+   HELPERS
+════════════════════════════════════════════ */
+function badgeClass(status) {
+  const map = {
+    'PEDIDO ATENDIDO':      'badge-atendido',
+    'PEDIDO GERADO':        'badge-gerado',
+    'PEDIDO PARC. ATENDIDO':'badge-parcial',
+    'CANCELADO':            'badge-cancelado',
+    'RECUSADO':             'badge-recusado',
+    'LIBERADO':             'badge-liberado',
+    'EM APROVACAO':         'badge-aprovacao',
+    'EM COTACAO':           'badge-cotacao',
+  };
+  return map[status] || 'badge-cotacao';
+}
+
+function groupBy(arr, key) {
+  return arr.reduce((acc, r) => {
+    const k = r[key];
+    if (k === null || k === undefined) return acc;
+    if (!acc[k]) acc[k] = [];
+    acc[k].push(r);
+    return acc;
+  }, {});
+}
+
+function sumVal(arr) { return arr.reduce((s,r) => s+(r.vlNegociado||0), 0); }
+
+function toNum(v) {
+  if (v === null || v === undefined || v === '') return 0;
+  if (typeof v === 'number') return v;
+  const s = String(v).replace(/\./g,'').replace(',','.');
+  return parseFloat(s) || 0;
+}
+
+function parseDate(v) {
+  if (!v) return null;
+  if (v instanceof Date) {
+    const y = v.getFullYear(), m = String(v.getMonth()+1).padStart(2,'0'), d = String(v.getDate()).padStart(2,'0');
+    return `${y}-${m}-${d}`;
+  }
+  if (typeof v === 'number') {
+    const d = XLSX.SSF.parse_date_code(v);
+    if (d) return `${d.y}-${String(d.m).padStart(2,'0')}-${String(d.d).padStart(2,'0')}`;
+  }
+  const s = String(v);
+  const m = s.match(/(\d{4})-(\d{2})-(\d{2})/);
+  if (m) return `${m[1]}-${m[2]}-${m[3]}`;
+  return null;
+}
+
+function formatMes(ym) {
+  if (!ym) return '';
+  const [y,m] = ym.split('-');
+  const names = ['Jan','Fev','Mar','Abr','Mai','Jun','Jul','Ago','Set','Out','Nov','Dez'];
+  return `${names[parseInt(m)-1]}/${y.slice(2)}`;
+}
+
+function fmt(v) {
+  if (!v && v !== 0) return '—';
+  return 'R$ ' + Number(v).toLocaleString('pt-BR', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+}
+
+function truncate(s, n) {
+  if (!s) return '—';
+  return String(s).length > n ? String(s).slice(0,n)+'…' : s;
+}
+
+function show(id) {
+  const el = document.getElementById(id);
+  if (!el) return;
+  if (id === 'loading')      el.style.display = 'flex';
+  else if (id === 'filters-bar') el.style.display = 'flex';
+  else el.style.display = 'block';
+}
+function hide(id) {
+  const el = document.getElementById(id);
+  if (el) el.style.display = 'none';
+}
+</script>
+</body>
+</html>
